@@ -1,0 +1,74 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.0 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
+<!-- saved from url=(0044)https://pubweb.eng.utah.edu/~cs3520/hw3.html -->
+<html><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8"><title>CS 3520  Homework 3</title><link href="./CS 3520 Homework 3_files/css" rel="stylesheet"><style>td { vertical-align: baseline; } table, body, .mainfont { font-size: 18; }.schedule { font-size: 16; }body, .mainfont { font-family: 'Sorts Mill Goudy', serif; }h1, h2, h3, h4, h5, .head, .label { font-family: 'Titillium Web', sans-serif;  }.head { font-weight: bold; }a { text-decoration: none; }.highlight { font-style: italic; color: #000088 } </style></head><body style="bgcolor: white; width: 45em; margin-left: auto; margin-right: auto"><h2>CS 3520  Homework 3</h2><p class="label">Due: Wednesday, September 12th, 2018 11:59pm</p><h3>Part 1 — Booleans</h3><p>Start with the <a href="https://pubweb.eng.utah.edu/~cs3520/lambda.rkt">interpreter with function values</a>, and extend the implementation to support boolean literals, an equality test, and a conditional form:</p><pre>  &lt;Exp&gt; = ....
+        | true
+        | false
+        | {= &lt;Exp&gt; &lt;Exp&gt;}
+        | {if &lt;Exp&gt; &lt;Exp&gt; &lt;Exp&gt;}</pre><p>The <tt>=</tt> operator should only work on number values, and <tt>if</tt> should ony work when the value of the first subexpression is a boolean. Report a “not a number” error if a subexpression <tt>=</tt> produces a non-number value, and report a “not a boolean” error when the first subexpression of <tt>if</tt> does not produce a boolean. The <tt>if</tt> form should evaluate its second subexpression only when the first subexpression’s value is true, and it should evaluate its third subexpression only when the first subexpression’s value is false. True and false are always spelled <tt>true</tt> and <tt>false</tt>, not <tt>#t</tt> or <tt>#f</tt>.</p><p>Note that you not only need to extend <tt>Exp</tt> with new kinds of expressions, you will also need to add booleans to <tt>Value</tt>.</p><p>For example,</p><pre>  true</pre><p>should produce a true value, while</p><pre>  {if true {+ 1 2} 5}</pre><p>should produce 3, and</p><pre>  {if 1 2 3}</pre><p>should report a “not a boolean” error.</p><p>As usual, update <tt>parse</tt> to support the extended language.</p><p>More examples:</p><pre>  (test (interp (parse `{if {= 2 {+ 1 1}} 7 8})
+                mt-env)
+        (interp (parse `7)
+                mt-env))
+  (test (interp (parse `{if false {+ 1 {lambda {x} x}} 9})
+                mt-env)
+        (interp (parse `9)
+                mt-env))
+  (test (interp (parse `{if true 10 {+ 1 {lambda {x} x}}})
+                mt-env)
+        (interp (parse `10)
+                mt-env))
+  (test/exn (interp (parse `{if 1 2 3})
+                    mt-env)
+            "not a boolean")</pre><h3>Part 2 — Hiding Variables</h3><p>Add an <tt>unlet</tt> form that hides the nearest visible binding (if any)
+of a specified variable, but lets other bindings through.
+For example,</p><pre>  {let {[x 1]}
+    {unlet x
+      x}}</pre><p>should raise a “free variable” exception, but</p><pre>  {let {[x 1]}
+    {let {[x 2]}
+      {unlet x
+        x}}}</pre><p>should produce <tt>1</tt>.</p><p>As before, you must update the <tt>parse</tt> function.</p><p>Some examples:</p><pre>  (test/exn (interp (parse `{let {[x 1]}
+                             {unlet x
+                              x}})
+                    mt-env)
+            "free variable")
+  (test (interp (parse `{let {[x 1]}
+                          {+ x {unlet x 1}}})
+                mt-env)
+        (interp (parse `2) mt-env))
+  (test (interp (parse `{let {[x 1]}
+                          {let {[x 2]}
+                            {+ x {unlet x x}}}})
+                mt-env)
+        (interp (parse `3) mt-env))
+  (test (interp (parse `{let {[x 1]}
+                          {let {[x 2]}
+                            {let {[z 3]}
+                              {+ x {unlet x {+ x z}}}}}})
+                mt-env)
+        (interp (parse `6) mt-env))
+  (test (interp (parse `{let {[f {lambda {z}
+                                   {let {[z 8]}
+                                     {unlet z
+                                       z}}}]}
+                          {f 2}})
+                mt-env)
+        (interp (parse `2) mt-env))</pre><h3>Part 3 — Thunks</h3><p>A <i>thunk</i> is like a function of zero arguments, whose purpose is to delay a computation. Extend your interpreter with a <tt>delay</tt> form that creates a thunk, and a <tt>force</tt> form that causes a thunk’s expression to be evaluated:</p><pre>  &lt;Exp&gt; = ....
+        | {delay &lt;Exp&gt;}
+        | {force &lt;Exp&gt;}</pre><p>A thunk is a new kind of value, like a number, function, or boolean.</p><p>For example,</p><pre>  {delay {+ 1 {lambda {x} x}}}</pre><p>produces a thunk value without complaining that a function is not a number, while</p><pre>  {force {delay {+ 1 {lambda {x} x}}}}</pre><p>triggers a “not a number” error. As another example,</p><pre>   {let {[ok {delay {+ 1 2}}]}
+     {let {[bad {delay {+ 1 false}}]}
+       {force ok}}}</pre><p>produces 3, while</p><pre>   {let {[ok {delay {+ 1 2}}]}
+     {let {[bad {delay {+ 1 false}}]}
+       {force bad}}}</pre><p>triggers a “not a number” error.</p><p>More examples:</p><pre>  (test/exn (interp (parse `{force 1})
+                    mt-env)
+            "not a thunk")
+  (test (interp (parse `{force {if {= 8 8} {delay 7} {delay 9}}})
+                mt-env)
+        (interp (parse `7)
+                mt-env))
+  (test (interp (parse `{let {[d {let {[y 8]}
+                                   {delay {+ y 7}}}]}
+                          {let {[y 9]}
+                            {force d}}})
+                mt-env)
+        (interp (parse `15)
+                mt-env))</pre><blockquote><p>Note: In plain Racket, <tt>delay</tt> creates a <i>promise</i>. A promise is like a thunk, but when a promise is <tt>force</tt>d multiple times, the result from the first time is remembered and returned all the other times, so that the expression in a promise is evaluated at most once. We’re not concerned with that facet of <tt>delay</tt> and <tt>force</tt>, for now.</p></blockquote><hr><table width="100%"><tbody><tr><td align="right">Last update: Friday, September 14th, 2018<address>mflatt@cs.utah.edu</address></td></tr></tbody></table>
+</body></html>

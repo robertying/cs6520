@@ -1,0 +1,69 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.0 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
+<!-- saved from url=(0044)https://pubweb.eng.utah.edu/~cs3520/hw4.html -->
+<html><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8"><title>CS 3520  Homework 4</title><link href="./CS 3520 Homework 4_files/css" rel="stylesheet"><style>td { vertical-align: baseline; } table, body, .mainfont { font-size: 18; }.schedule { font-size: 16; }body, .mainfont { font-family: 'Sorts Mill Goudy', serif; }h1, h2, h3, h4, h5, .head, .label { font-family: 'Titillium Web', sans-serif;  }.head { font-weight: bold; }a { text-decoration: none; }.highlight { font-style: italic; color: #000088 } </style></head><body style="bgcolor: white; width: 45em; margin-left: auto; margin-right: auto"><h2>CS 3520  Homework 4</h2><p class="label">Due: Wednesday, September 19th, 2018 11:59pm</p><h3>Part 1 — Improving Assignment</h3><p>Start with <tt><a href="https://pubweb.eng.utah.edu/~cs3520/store-with.rkt">store-with.rkt</a></tt>. In the starting program, the representation of the store grows every time that a box’s content is modified with <tt>set-box!</tt>. Change the implementation of <tt>set-box!</tt> so that the old value of the box is dropped (i.e., replaced with the new value) instead of merely hidden by the outside-in search order of <tt>fetch</tt>.</p><p>Example:</p><pre>  (test (interp (parse `{let {[b {box 1}]}
+                          {begin
+                           {set-box! b 2}
+                           {unbox b}}})
+                mt-env
+                mt-store)
+        (v*s (numV 2)
+             (override-store (cell 1 (numV 2))
+                             mt-store)))</pre><h3>Part 2 — Sequences</h3><p>Generalize <tt>begin</tt> to allow one or more sub-expressions, instead of exactly two sub-expressions.</p><pre>  &lt;Exp&gt; = ...
+        | {begin &lt;Exp&gt;* &lt;Exp&gt;}</pre><p>Example:</p><pre>  (test (interp (parse `{let {[b {box 1}]}
+                          {begin
+                            {set-box! b {+ 2 {unbox b}}}
+                            {set-box! b {+ 3 {unbox b}}}
+                            {set-box! b {+ 4 {unbox b}}}
+                            {unbox b}}})
+                mt-env
+                mt-store)
+        (v*s (numV 10)
+             (override-store (cell 1 (numV 10))
+                             mt-store)))</pre><h3>Part 3 — Records</h3><p>Extend the interpreter to support the construction of records with named fields, to support field selection from a record (as in <tt><a href="https://pubweb.eng.utah.edu/~cs3520/record.rkt">record.rkt</a></tt>):</p><pre>  &lt;Exp&gt; = ...
+        | {record {&lt;Sym&gt; &lt;Exp&gt;}*}
+        | {get &lt;Exp&gt; &lt;Sym&gt;}</pre><p>Adding records means that the language now has four kinds of values: numbers, functions, boxes, and records. At run-time, an error may occur because a record is misused as a number or function, a number or function is supplied to <tt>get</tt>, or a record supplied to <tt>get</tt> does not have the named field, and so on. Your error message for the last case should include the words “no such field”, otherwise you can make up your own error messages.</p><p>Expressions within a <tt>record</tt> form should be evaluated when the <tt>record</tt> form itself is evaluated, and in the order that the expressions appear in the <tt>record</tt> form. For example,</p><pre>  {let {[b {box 0}]}
+    {let {[r {record {a {unbox b}}}]}
+      {begin
+        {set-box! b 1}
+        {get r a}}}}</pre><p>should produce <tt>0</tt>, not <tt>1</tt>, because <tt>{unbox b}</tt> is evaluated when the <tt>record</tt> expression is evaluated, not when the <tt>get</tt> expression is evaluated.</p><p>Note that you will not be able to use <tt>map</tt> to <tt>interp</tt> field values, since a store must be carried from one field’s evaluation to the next. Instead, <tt>interp</tt>ing the field value will be more like <tt>interp</tt>ing a sequence of expressions for <tt>begin</tt>.</p><p>For homework purposes, we don’t want to nail down the representation of a record value, because there are many choices. The examples below therefore use <tt>interp-expr</tt>, which you should define as a wrapper on <tt>interp</tt> that takes just an <tt>Exp</tt> and produces just an S-expression: an S-expression number if <tt>interp</tt> produces any number, the S-expression <tt>`function</tt> if <tt>interp</tt> produces a closure,  the S-expression <tt>`box</tt> if <tt>interp</tt> produces a box,  or the S-expression <tt>`record</tt> if <tt>interp</tt> produces a record value.</p><p>Examples:</p><pre>  (test (interp-expr (parse `{+ 1 4}))
+        `5)
+  (test (interp-expr (parse `{record {a 10} {b {+ 1 2}}}))
+        `record)
+  (test (interp-expr (parse `{get {record {a 10} {b {+ 1 0}}} b}))
+        `1)
+  (test/exn (interp-expr (parse `{get {record {a 10}} b}))
+            "no such field")
+  (test (interp-expr (parse `{get {record {r {record {z 0}}}} r}))
+        `record)
+  (test (interp-expr (parse `{get {get {record {r {record {z 0}}}} r} z}))
+        `0)</pre><h3>Part 4 — Mutating Records</h3><p><i>This exercise is optional for CS 3520 students, but it’s required for CS 6520 students. It counts as extra points either way, but that’s not really “extra” for CS 6520.</i></p><p>Add a <tt>set</tt> form that modifies the value of a record field imperatively (as opposed to functional update):</p><pre>  &lt;Exp&gt; = ...
+        | {set! &lt;Exp&gt; &lt;Sym&gt; &lt;Exp&gt;}</pre><p>Evaluation of a <tt>record</tt> expression allocates a location for each of its fields. A <tt>get</tt> expression accesses from the record produced by the sub-expression the value in the location of the field named by the identifier. A <tt>set!</tt> form changes the value in the location for a field; the value of the second sub-expression in <tt>set!</tt> determines the field’s new value, and that value is also the result of the <tt>set!</tt> expression.</p><p>Note that making record fields mutable has the same effect as forcing every field of a record to be a Curly box, where the box contain the proper value of the field. Internal to the interpreter implementation, you could use Curly boxes in your implementation of mutable records, or you could use addresses more directly. You should not use Plait boxes at all.</p><p>Examples:</p><pre>  (test (interp-expr (parse `{let {[r {record {x 1}}]}
+                               {get r x}}))
+        `1)
+
+  (test (interp-expr (parse `{let {[r {record {x 1}}]}
+                               {begin
+                                 {set! r x 5}
+                                 {get r x}}}))
+        `5)
+
+  (test (interp-expr (parse `{let {[r {record {x 1}}]}
+                               {let {[get-r {lambda {d} r}]}
+                                 {begin
+                                   {set! {get-r 0} x 6}
+                                   {get {get-r 0} x}}}}))
+        `6)
+
+  (test (interp-expr (parse `{let {[g {lambda {r} {get r a}}]}
+                               {let {[s {lambda {r} {lambda {v} {set! r b v}}}]}
+                                 {let {[r1 {record {a 0} {b 2}}]}
+                                   {let {[r2 {record {a 3} {b 4}}]}
+                                     {+ {get r1 b}
+                                        {begin
+                                          {{s r1} {g r2}}
+                                          {+ {begin
+                                               {{s r2} {g r1}}
+                                               {get r1 b}}
+                                             {get r2 b}}}}}}}}))
+        `5)</pre><hr><table width="100%"><tbody><tr><td align="right">Last update: Wednesday, September 19th, 2018<address>mflatt@cs.utah.edu</address></td></tr></tbody></table>
+</body></html>

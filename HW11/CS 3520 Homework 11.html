@@ -1,0 +1,103 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.0 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
+<!-- saved from url=(0045)https://pubweb.eng.utah.edu/~cs3520/hw11.html -->
+<html><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8"><title>CS 3520  Homework 11</title><link href="./CS 3520 Homework 11_files/css" rel="stylesheet"><style>td { vertical-align: baseline; } table, body, .mainfont { font-size: 18; }.schedule { font-size: 16; }body, .mainfont { font-family: 'Sorts Mill Goudy', serif; }h1, h2, h3, h4, h5, .head, .label { font-family: 'Titillium Web', sans-serif;  }.head { font-weight: bold; }a { text-decoration: none; }.highlight { font-style: italic; color: #000088 } </style></head><body style="bgcolor: white; width: 45em; margin-left: auto; margin-right: auto"><h2>CS 3520  Homework 11</h2><p class="label">Due: Wednesday, November 21st, 2018 11:59pm</p><p>Start with <tt><a href="https://pubweb.eng.utah.edu/~cs3520/hw11-starter.rkt">hw11-starter.rkt</a></tt>, which is
+      based on <tt><a href="https://pubweb.eng.utah.edu/~cs3520/infer-lambda.rkt">infer-lambda.rkt</a></tt>.</p><p>The language implemented by <tt><a href="https://pubweb.eng.utah.edu/~cs3520/hw11-starter.rkt">hw11-starter.rkt</a></tt> adds <tt>empty</tt>, <tt>cons</tt>, <tt>first</tt>, and <tt>rest</tt> expressions to the language, and a <tt>listof</tt> type constructor:</p><pre>  &lt;Exp&gt; = &lt;Number&gt;
+        | {+ &lt;Exp&gt; &lt;Exp&gt;}
+        | {* &lt;Exp&gt; &lt;Exp&gt;}
+        | &lt;Symbol&gt;
+        | {lambda {[&lt;Symbol&gt; : &lt;Type&gt;]} &lt;Exp&gt;}
+        | {&lt;Exp&gt; &lt;Exp&gt;}
+        | empty
+        | {cons &lt;Exp&gt; &lt;Exp&gt;}
+        | {first &lt;Exp&gt;}
+        | {rest &lt;Exp&gt;}
+  
+   &lt;Type&gt; = num
+          | bool
+          | (&lt;Type&gt; -&gt; &lt;Type&gt;)
+          | ?
+          | (listof &lt;Type&gt;)</pre><p>Only the <tt>interp</tt> part of the language is implemented, so far. The <tt>typecheck</tt>
+part is incomplete, and your job will be to complete it. First, however, you’ll add
+<tt>if0</tt>.</p><h3>Part 1 — Inferring Conditional Types</h3><p>Extend the language with an <tt>if0</tt> form with its usual meaning:</p><pre>  &lt;Exp&gt; = ...
+        | {if0 &lt;Exp&gt; &lt;Exp&gt; &lt;Exp&gt;}</pre><p>Also, add a <tt>run-prog</tt> function that takes an S-expression, parses it,
+typechecks it, and interprets it. If the parsed S-expression has no type,
+<tt>run-prog</tt> should raise a “no type” exception. Otherwise, the result
+from <tt>run-prog</tt> should be an
+S-expression: an S-expression number if <tt>interp</tt> produces any number,
+the S-expression <tt>`function</tt> if <tt>interp</tt> produces a closure,
+or the S-expression <tt>`list</tt> if <tt>interp</tt> produces a list.</p><p>Examples:</p><pre>  (test (run-prog `1)
+        `1)
+  
+  (test (run-prog `{if0 0 1 2})
+        `1)
+  (test (run-prog `{if0 2 1 0})
+        `0)
+  (test (run-prog `{if0 2 {lambda {[x : ?]} x} {lambda {[x : ?]} {+ 1 x}}})
+        `function)
+  (test/exn (run-prog `{if0 {lambda {[x : ?]} x} 1 2})
+            "no type")
+  (test/exn (run-prog `{if0 0 {lambda {[x : ?]} x} 2})
+            "no type")
+  (test (run-prog `{let {[f : ?
+                            {lambda {[x : ?]}
+                             {lambda {[y : ?]}
+                              {lambda {[z : ?]}
+                               {if0 x y z}}}}]}
+                    {{{f 1} 2} 3}})
+        `3)
+  (test (run-prog `{let {[f : ?
+                            {lambda {[x : ?]}
+                             {lambda {[y : ?]}
+                              {lambda {[z : ?]}
+                               {if0 x y {lambda ([x : ?]) z}}}}}]}
+                    {{{{f 1} {lambda {[x : num]} 2}} 3} 4}})
+        `3)
+  (test/exn (run-prog `{let {[f : ?
+                                {lambda {[x : ?]}
+                                 {if0 x x {x 1}}}]}
+                        {f 1}})
+            "no type")</pre><h3>Part 2 — Inferring List Types</h3><p>Complete <tt>typecheck</tt> for lists. Your <tt>typecheck</tt> must ensure that
+an expression with a type never triggers a “not a list” or “not a number” error from <tt>interp</tt>,
+although an expression with a type may still trigger a “list is empty” error.</p><p>The <tt>listof</tt> type constructor takes another type for the elements of a list. For example, the expression <tt>{cons 1 empty}</tt> should have type <tt>(listof num)</tt>. Similarly, the expression <tt>{cons {fun {x : num} x} empty}</tt> should have type <tt>(listof (num -&gt; num))</tt>.</p><p>The expression <tt>empty</tt> can have type <tt>(listof <i>&lt;Type&gt;</i>)</tt> for any <tt><i>&lt;Type&gt;</i></tt>. Similarly, <tt>cons</tt> should work on arguments of type <tt><i>&lt;Type&gt;</i></tt> and <tt>(listof <i>&lt;Type&gt;</i>)</tt> for any <tt><i>&lt;Type&gt;</i></tt>, while <tt>first</tt> and  <tt>rest</tt> work on an argument of type <tt>(listof <i>&lt;Type&gt;</i>)</tt>.</p><table><tbody><tr><td><span>&nbsp;&nbsp;&nbsp;</span></td><td><tt><span style="font-family: sanserif; font-weight: bold"><span style="font-family: serif">Γ</span></span> <span style="font-family: serif">⊢</span> empty : (listof <span style="font-family: sanserif; font-weight: bold"><span style="font-family: serif">τ</span></span>)</tt></td><td><span>&nbsp;&nbsp;&nbsp;</span></td><td><div style="display: inline-block; text-align: center"><div style="width: 100%;  border-bottom: 1pt solid black"><tt><span style="font-family: sanserif; font-weight: bold"><span style="font-family: serif">Γ</span></span> <span style="font-family: serif">⊢</span> <span><span style="font-family: sanserif; font-weight: bold">e</span><sub>1</sub></span> : <span style="font-family: sanserif; font-weight: bold"><span style="font-family: serif">τ</span></span>  <span>&nbsp;&nbsp;&nbsp;</span> <span style="font-family: sanserif; font-weight: bold"><span style="font-family: serif">Γ</span></span> <span style="font-family: serif">⊢</span> <span><span style="font-family: sanserif; font-weight: bold">e</span><sub>2</sub></span> : (listof <span style="font-family: sanserif; font-weight: bold"><span style="font-family: serif">τ</span></span>)</tt></div><div><tt><span style="font-family: sanserif; font-weight: bold"><span style="font-family: serif">Γ</span></span> <span style="font-family: serif">⊢</span> (cons <span><span style="font-family: sanserif; font-weight: bold">e</span><sub>1</sub></span> <span><span style="font-family: sanserif; font-weight: bold">e</span><sub>2</sub></span>) : (listof <span style="font-family: sanserif; font-weight: bold"><span style="font-family: serif">τ</span></span>)</tt></div></div></td></tr><tr><td><span>&nbsp;&nbsp;&nbsp;</span></td><td><span>&nbsp;&nbsp;&nbsp;</span></td><td><span>&nbsp;&nbsp;&nbsp;</span><span>&nbsp;&nbsp;&nbsp;</span><span>&nbsp;&nbsp;&nbsp;</span></td><td><span>&nbsp;&nbsp;&nbsp;</span></td></tr><tr><td><span>&nbsp;&nbsp;&nbsp;</span></td><td><div style="display: inline-block; text-align: center"><div style="width: 100%;  border-bottom: 1pt solid black"><tt><span style="font-family: sanserif; font-weight: bold"><span style="font-family: serif">Γ</span></span> <span style="font-family: serif">⊢</span> <span style="font-family: sanserif; font-weight: bold">e</span> : (listof <span style="font-family: sanserif; font-weight: bold"><span style="font-family: serif">τ</span></span>)</tt></div><div><tt><span style="font-family: sanserif; font-weight: bold"><span style="font-family: serif">Γ</span></span> <span style="font-family: serif">⊢</span> (first <span style="font-family: sanserif; font-weight: bold">e</span>) : <span style="font-family: sanserif; font-weight: bold"><span style="font-family: serif">τ</span></span></tt></div></div></td><td><span>&nbsp;&nbsp;&nbsp;</span></td><td><div style="display: inline-block; text-align: center"><div style="width: 100%;  border-bottom: 1pt solid black"><tt><span style="font-family: sanserif; font-weight: bold"><span style="font-family: serif">Γ</span></span> <span style="font-family: serif">⊢</span> <span style="font-family: sanserif; font-weight: bold">e</span> : (listof <span style="font-family: sanserif; font-weight: bold"><span style="font-family: serif">τ</span></span>)</tt></div><div><tt><span style="font-family: sanserif; font-weight: bold"><span style="font-family: serif">Γ</span></span> <span style="font-family: serif">⊢</span> (rest <span style="font-family: sanserif; font-weight: bold">e</span>) : (listof <span style="font-family: sanserif; font-weight: bold"><span style="font-family: serif">τ</span></span>)</tt></div></div></td></tr></tbody></table><p>A list is somewhat like a pair that you added to the language in <a href="https://pubweb.eng.utah.edu/~cs3520/hw10.html">HW 10</a>, but it is treated differently by the type system. Note that type inference is needed for a plain <tt>empty</tt> expression form to make sense (or else we’d need one <tt>empty</tt> for every type of list element). Type-inferring and checking a <tt>first</tt> or <tt>rest</tt> expression will be similar to the application case, in that you’ll need to invent a type variable to stand for the list element’s type.</p><p>Examples:</p><pre>  (test (run-prog `empty)
+        `list)
+  
+  (test (run-prog `{cons 1 empty})
+        `list)
+  (test (run-prog `{cons empty empty})
+        `list)
+  (test/exn (run-prog `{cons 1 {cons empty empty}})
+            "no type")
+  
+  (test/exn (run-prog `{first 1})
+            "no type")
+  (test/exn (run-prog `{rest 1})
+            "no type")
+  
+  (test/exn (run-prog `{first empty})
+            "list is empty")
+  (test/exn (run-prog `{rest empty})
+            "list is empty")
+  
+  (test (run-prog `{let {[f : ?
+                            {lambda {[x : ?]} {first x}}]}
+                     {+ {f {cons 1 empty}} 3}})
+        `4)
+  (test (run-prog `{let {[f : ?
+                            {lambda {[x : ?]} {rest x}}]}
+                     {+ {first {f {cons 1 {cons 2 empty}}}} 3}})
+        `5)
+  (test (run-prog `{let {[f : ?
+                            {lambda {[x : ?]}
+                              {lambda {[y : ?]}
+                                {cons x y}}}]}
+                     {first {rest {{f 1} {cons 2 empty}}}}})
+        `2)
+  
+  (test/exn (run-prog `{lambda {[x : ?]}
+                         {cons x x}})
+            "no type")
+  
+  (test/exn (run-prog `{let {[f : ? {lambda {[x : ?]} x}]}
+                         {cons {f 1} {f empty}}})
+            "no type")</pre><hr><table width="100%"><tbody><tr><td align="right">Last update: Tuesday, November 13th, 2018<address>mflatt@cs.utah.edu</address></td></tr></tbody></table>
+</body></html>
